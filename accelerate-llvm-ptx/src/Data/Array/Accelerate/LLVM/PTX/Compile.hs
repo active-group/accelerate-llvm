@@ -72,6 +72,7 @@ import Foreign.Ptr
 import Foreign.Storable
 import Formatting
 import System.Directory
+import qualified System.Environment as Environment
 import System.Exit
 import System.FilePath
 import System.IO
@@ -153,6 +154,11 @@ compileCUBIN :: HasCallStack => CUDA.DeviceProperties -> FilePath -> ByteString 
 compileCUBIN dev sass ptx = do
   _verbose  <- if Debug.debuggingIsEnabled then Debug.getFlag Debug.verbose else return False
   _debug    <- if Debug.debuggingIsEnabled then Debug.getFlag Debug.debug   else return False
+  -- read a special environment variable at runtime, so that we can use the
+  -- apt-installed minimal cudatoolkit instead of the huge one this package was
+  -- built against in nixpkgs
+  mcudaBinPath <- Environment.lookupEnv "AD_CUDA_BIN_PATH"
+  let cudaBinPath' = fromMaybe cudaBinPath mcudaBinPath
   --
   let verboseFlag       = if _verbose then [ "-v" ]              else []
       debugFlag         = if _debug   then [ "-g", "-lineinfo" ] else []
@@ -160,7 +166,7 @@ compileCUBIN dev sass ptx = do
       CUDA.Compute m n  = CUDA.computeCapability dev
       flags             = "-" : "-o" : sass : arch : verboseFlag ++ debugFlag
       --
-      cp = (proc (cudaBinPath </> "ptxas") flags)
+      cp = (proc (cudaBinPath' </> "ptxas") flags)
             { std_in  = CreatePipe
             , std_out = NoStream
             , std_err = CreatePipe
